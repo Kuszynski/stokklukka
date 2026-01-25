@@ -2,243 +2,185 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
 import io
+import numpy as np
 
 # Sidekonfigurasjon
 st.set_page_config(page_title="Stokklukeanalyse - Michal Kuszynski", layout="wide", page_icon="🌲")
 
-st.title("📊 Stokklukeanalyse")
+# CSS for minimalistisk stil
 st.markdown("""
 <style>
-    /* Minimalistisk stil */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    h1 {
-        font-family: 'Helvetica Neue', sans-serif;
-        font-weight: 300;
-        color: #2c3e50;
-    }
-    h2, h3 {
-        font-family: 'Helvetica Neue', sans-serif;
-        font-weight: 300;
-        color: #34495e;
-    }
-    /* Skjul Streamlit meny */
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+    h1, h2, h3 { font-family: 'Helvetica Neue', sans-serif; font-weight: 300; color: #2c3e50; }
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
-
 </style>
-Dette verktøyet brukes til rask analyse av produksjonsdata fra tekstfiler (f.eks. `Snap.txt`).
-Last opp filen, velg relevante kolonner og se statistikk og grafer for prosessoptimalisering.
 """, unsafe_allow_html=True)
 
+st.title("📊 Stokklukeanalyse")
+st.markdown("Dette verktøyet brukes til rask analyse av produksjonsdata (f.eks. `Snap.txt`) for prosessoptimalisering.")
 
-# 1. Datainnlasting
+# --- Funksjoner ---
+def calculate_capability(data, lsl, usl):
+    mean = data.mean()
+    sigma = data.std()
+    if sigma == 0: return 0, 0
+    cp = (usl - lsl) / (6 * sigma)
+    cpu = (usl - mean) / (3 * sigma)
+    cpl = (mean - lsl) / (3 * sigma)
+    cpk = min(cpu, cpl)
+    return cp, cpk
+
+# --- 1. Datainnlasting ---
 st.sidebar.header("1. Datainnlasting")
 uploaded_file = st.sidebar.file_uploader("Velg tekstfil (.txt, .csv)", type=['txt', 'csv'])
 
-
 if uploaded_file is not None:
     try:
-        # Prøver å laste data med ulike kodinger
         encodings = ['utf-8', 'latin-1', 'cp1252']
         df = None
-        
         for encoding in encodings:
             try:
                 uploaded_file.seek(0)
-                # Prøver tabulator først (standard for Snap.txt)
                 df = pd.read_csv(uploaded_file, sep='\t', skipinitialspace=True, encoding=encoding)
-                if len(df.columns) < 2: 
-                     uploaded_file.seek(0)
-                     df = pd.read_csv(uploaded_file, sep=',', encoding=encoding)
-                break 
-            except UnicodeDecodeError:
-                continue 
-            except Exception:
-                continue
+                if len(df.columns) < 2:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, sep=',', encoding=encoding)
+                break
+            except: continue
 
         if df is None:
-             st.error(f"Kunne ikke laste filen. Vennligst sjekk filformatet.")
-             st.stop()
-        
-        # Rensing av kolonnenavn
-        df.columns = df.columns.str.strip()
-        
-        st.success(f"Fil lastet opp: {uploaded_file.name} ({len(df)} rader)")
-        
-        with st.expander("Forhåndsvisning av rådata"):
-            st.dataframe(df.head())
+            st.error("Kunne ikke laste filen.")
+            st.stop()
 
-        # 2. Konfigurasjon
+        df.columns = df.columns.str.strip()
+        st.success(f"Fil lastet opp: {uploaded_file.name}")
+
+        # --- 2. Konfigurasjon ---
         with st.sidebar.expander("⚙️ Konfigurasjon", expanded=True):
             all_columns = df.columns.tolist()
-            
-            
-            # Automatisk gjenkjenning av kolonner
             default_gap = 'StoLucka' if 'StoLucka' in all_columns else all_columns[0]
             default_len = 'Längd' if 'Längd' in all_columns else (all_columns[1] if len(all_columns) > 1 else all_columns[0])
-            
-            st.markdown("### Valg av kolonner for korrelasjon")
             col_gap = st.selectbox("Kolonne for lukestørrelse (StoLucka)", all_columns, index=all_columns.index(default_gap))
             col_len = st.selectbox("Kolonne for stokklengde (Längd)", all_columns, index=all_columns.index(default_len))
-        
-        
-        # Filtrering
+
+        # --- 3. Datarensing ---
         st.sidebar.markdown("---")
-        st.sidebar.subheader("Filtrering")
-
-        use_num_filter = st.sidebar.checkbox("Filtrer etter mål (f.eks. InmDia)")
-        if use_num_filter:
-            default_num = 'InmDia' if 'InmDia' in all_columns else all_columns[0]
-            col_num = st.sidebar.selectbox("Velg filterkolonne", all_columns, index=all_columns.index(default_num) if default_num in all_columns else 0)
-            
-            if pd.api.types.is_numeric_dtype(df[col_num]):
-                min_val = int(df[col_num].min())
-                max_val = int(df[col_num].max())
-                
-                if min_val == max_val:
-                    st.sidebar.info(f"Kun én verdi tilgjengelig: {min_val}")
-                else:
-                    range_vals = st.sidebar.slider(f"Velg område for {col_num}", min_val, max_val, (min_val, max_val), step=1)
-                    df = df[(df[col_num] >= range_vals[0]) & (df[col_num] <= range_vals[1])]
-            else:
-                st.sidebar.error(f"Kolonnen {col_num} er ikke numerisk!")
-
-        st.sidebar.info(f"Viser {len(df)} rader etter filtrering.")
+        st.sidebar.subheader("🛠️ Datarensing")
         
-        # Data til analyse
         df_clean = df[[col_gap, col_len]].dropna()
-        
-        if len(df_clean) == 0:
-            st.error("Ingen data tilgjengelig etter filtrering.")
+
+        # Obliczanie obu granic anomalii (IQR)
+        Q1 = df_clean[col_gap].quantile(0.25)
+        Q3 = df_clean[col_gap].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+
+        outliers_low = df_clean[df_clean[col_gap] < lower_bound]
+        outliers_high = df_clean[df_clean[col_gap] > upper_bound]
+        total_outliers_count = len(outliers_low) + len(outliers_high)
+
+        exclude_outliers = st.sidebar.checkbox("Ekskluder ALLE anomalier", help="Fjerner både for lave og for høye verdier.")
+
+        # --- 4. Prosessmål ---
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎯 Prosessmål (Lean)")
+        target_val = st.sidebar.number_input("Ønsket luke (Target)", value=100.0)
+        lsl = st.sidebar.number_input("Nedre grense (LSL)", value=50.0)
+        usl = st.sidebar.number_input("Øvre grense (USL)", value=150.0)
+
+        # Logika filtrowania
+        if exclude_outliers:
+            df_final = df_clean[(df_clean[col_gap] >= lower_bound) & (df_clean[col_gap] <= upper_bound)]
+            st.warning(f"Analysen viser nå data UTEN anomalier ({total_outliers_count} rader fjernet).")
         else:
-            # 3. Statistikk og Analyse
-            st.header("Statistikk og analyse")
+            df_final = df_clean
+
+        if len(df_final) > 0:
+            # --- STATISTIKK SEKSJON ---
+            st.header("Statistikk og prosesskapasitet")
             
-            stats = df_clean[col_gap].describe()
-            skewness = df_clean[col_gap].skew()
-            kurtosis = df_clean[col_gap].kurt()
-            correlation = df_clean[col_len].corr(df_clean[col_gap])
-            
-            # Første rad med statistikk
-            c1, c2, c3, c4 = st.columns(4)
+            stats = df_final[col_gap].describe()
+            skewness = df_final[col_gap].skew()
+            kurtosis = df_final[col_gap].kurt()
+            correlation = df_final[col_len].corr(df_final[col_gap])
+            cp, cpk = calculate_capability(df_final[col_gap], lsl, usl)
+
+            r1c1, r1c2, r1c3, r1c4 = st.columns(4)
+            r1c1.metric("Antall stokk", int(stats['count']))
+            r1c2.metric("Gjennomsnitt", f"{stats['mean']:.2f}")
+            r1c3.metric("Median luke", f"{stats['50%']:.2f}")
+            r1c4.metric("Standardavvik", f"{stats['std']:.2f}")
+
+            r2c1, r2c2, r2c3, r2c4 = st.columns(4)
+            r2c1.metric("Skjevhet (Skewness)", f"{skewness:.2f}")
+            r2c2.metric("Kurtose (Kurtosis)", f"{kurtosis:.2f}")
+            r2c3.metric("Cp (Potensial)", f"{cp:.2f}")
+            r2c4.metric("Cpk (Prosesskapasitet)", f"{cpk:.2f}")
+
+            # --- ANALYSE AV ANOMALIER ---
+            outliers_df = outliers_high
+            num_outliers = len(outliers_df)
+            percent_outliers = (num_outliers / len(df_clean)) * 100
+
+            st.header("🚨 Analyse av anomalier (Outliers)")
+            st.markdown(f"""
+            Denne analysen bruker **IQR-metoden** (Interquartile Range) for å identifisere klogger som skaper 
+            unaturlig store luker i produksjonen.
+            """)
+
+            c1, c2, c3 = st.columns(3)
             with c1:
-                st.metric("Antall stokk", int(stats['count']))
+                st.metric("Antall anomalier", num_outliers)
             with c2:
-                st.metric("Gjennomsnittlig luke", f"{stats['mean']:.2f}")
+                st.metric("Andel av produksjon", f"{percent_outliers:.2f}%")
             with c3:
-                st.metric("Median luke", f"{stats['50%']:.2f}")
-            with c4:
-                st.metric("Standardavvik", f"{stats['std']:.2f}")
+                st.metric("Grense for avvik", f"> {upper_bound:.1f} cm")
 
-            # Andre rad med statistikk (Inkludert Skewness og Kurtosis)
-            c4, c5, c6 = st.columns(3)
-            with c4:
-                st.metric("Skjevhet (Skewness)", f"{skewness:.2f}")
-            with c5:
-                st.metric("Kurtose (Kurtosis)", f"{kurtosis:.2f}")
-            with c6:
-                st.metric("Pearson-korrelasjon", f"{correlation:.4f}")
+            if num_outliers > 0:
+                with st.expander("Se liste over klogger med ekstreme luker"):
+                    st.write(f"Alle luker over **{upper_bound:.1f} cm** er definert som prosessfeil (outliers).")
+                    # Sorterer slik at de største lukene kommer først
+                    st.dataframe(outliers_df.sort_values(by=col_gap, ascending=False))
+                    
+                    st.info(f"""
+                    **Tips for Black Belt:** Disse kloggene er hovedårsaken til den høye kurtosen ({kurtosis:.2f}) 
+                    og den lave Cpk-verdien. Ved å eliminere årsakene til disse få kloggene, 
+                    vil prosessstabiliteten øke betydelig.
+                    """)
 
-            # Tolkning av Skewness
-            if skewness > 0.5:
-                skew_text = "Dataene er **høyreskjev** (positiv skjevhet). Det betyr at de fleste verdiene er lave, men noen få svært høye verdier trekker gjennomsnittet opp. Halen på høyre side er lengst."
-            elif skewness < -0.5:
-                skew_text = "Dataene er **venstreskjev** (negativ skjevhet). Det betyr at de fleste verdiene er høye, men noen få svært lave verdier trekker gjennomsnittet ned. Halen på venstre side er lengst."
-            else:
-                skew_text = "Dataene er tilnærmet **symmetriske**. Fordelingen ligner på en normalfordeling uten store skjevheter."
-
-            # Tolkning av Kurtosis
-            if kurtosis > 0.5:
-                kurt_text = "Fordelingen er **spiss** (leptokurtisk). Det er flere verdier rundt gjennomsnittet og flere i halene (flere utliggere) enn i en normalfordeling."
-            elif kurtosis < -0.5:
-                kurt_text = "Fordelingen er **flat** (platykurtisk). Det er færre ekstreme verdier (tynnere haler) og kurven er flatere enn en normalfordeling."
-            else:
-                kurt_text = "Fordelingen har en **normal krumning** (mesokurtisk), som forventet av en normalfordeling."
-
-            # Forklaring av statistiske begreper
-            with st.expander("ℹ️ Hva betyr Skjevhet og Kurtose?"):
-                st.markdown(f"""
-                ### **Din Dataanalyse:**
-                - **Skjevhet ({skewness:.2f}):** {skew_text}
-                - **Kurtose ({kurtosis:.2f}):** {kurt_text}
-                
-                ---
-                ### **Generell Teori:**
-                
-                #### **Skjevhet (Skewness)**
-                Måler asymmetrien i fordelingen av dataene.
-                - **0:** Symmetrisk fordeling (Normalfordeling).
-                - **Positiv (> 0):** Høyreskjev. Halen er lengre på høyre side (flere store verdier trekker snittet opp).
-                - **Negativ (< 0):** Venstreskjev. Halen er lengre på venstre side (flere små verdier trekker snittet ned).
-
-                #### **Kurtose (Kurtosis)**
-                Måler "spissheten" til fordelingen og tykkelsen på halene sammenlignet med en normalfordeling.
-                - **0 (Mesokurtisk):** Som en normalfordeling.
-                - **Positiv (> 0, Leptokurtisk):** Spissere topp og tykkere haler (flere ekstreme verdier/utliggere).
-                - **Negativ (< 0, Platykurtisk):** Flatere topp og tynnere haler (færre ekstreme verdier).
-                """)
-            
-            with st.expander("Detaljert deskriptiv statistikk"):
-                st.table(stats)
-
-            # Stil for grafer
-            sns.set_theme(style="ticks", rc={"axes.spines.right": False, "axes.spines.top": False})
-
-            # 4. Visualiseringer
+            # --- VISUALISERINGER ---
             st.header("Visualiseringer")
-
-            tab1, tab2, tab3 = st.tabs(["Histogram (Fordeling)", "Kjøreldiagram (Run Chart)", "Korrelasjon (Spredningsdiagram)"])
+            tab1, tab2, tab3 = st.tabs(["Histogram", "Run Chart", "Interaktiv Korrelasjon"])
 
             with tab1:
-                st.subheader("Fordeling av lukestørrelse (Prosessstabilitet)")
-                fig1, ax1 = plt.subplots(figsize=(10, 6))
-                sns.histplot(df_clean[col_gap], kde=True, color='royalblue', bins=30, ax=ax1)
-                ax1.set_xlabel(f'{col_gap} (Enhet)', fontsize=12)
-                ax1.set_ylabel('Antall observasjoner', fontsize=12)
-                ax1.axvline(stats['mean'], color='red', linestyle='--', label=f"Gjennomsnitt: {stats['mean']:.2f}")
+                fig1, ax1 = plt.subplots(figsize=(10, 5))
+                sns.histplot(df_final[col_gap], kde=True, color='royalblue', ax=ax1)
+                ax1.axvline(lsl, color='red', linestyle='--', label=f'LSL ({lsl})')
+                ax1.axvline(usl, color='red', linestyle='--', label=f'USL ({usl})')
+                ax1.axvline(target_val, color='green', linestyle='-', linewidth=2, label=f'Target ({target_val})')
                 ax1.legend()
                 st.pyplot(fig1)
 
             with tab2:
-                st.subheader("Lukestørrelse over tid (Trender i sekvens)")
-                fig2, ax2 = plt.subplots(figsize=(12, 6))
-                ax2.plot(df_clean.index, df_clean[col_gap], marker='o', markersize=3, 
-                         linestyle='-', alpha=0.6, color='forestgreen')
-                ax2.axhline(stats['mean'], color='red', linestyle='--', linewidth=2, label='Gjennomsnitt')
-                ax2.axhline(stats['mean'] + stats['std'], color='orange', linestyle=':', label='+1 Sigma')
-                ax2.axhline(stats['mean'] - stats['std'], color='orange', linestyle=':', label='-1 Sigma')
-                ax2.set_xlabel('Sekvens (Stokk nr.)', fontsize=12)
-                ax2.set_ylabel(f'{col_gap}', fontsize=12)
-                ax2.legend(loc='upper right')
-                st.pyplot(fig2)
+                fig2 = px.line(df_final, y=col_gap, title="Produksjonssekvens")
+                fig2.add_hline(y=target_val, line_dash="solid", line_color="green", annotation_text="Target")
+                st.plotly_chart(fig2, use_container_width=True)
 
             with tab3:
-                st.subheader("Korrelasjon: Stokklengde vs. Lukestørrelse")
-                fig3, ax3 = plt.subplots(figsize=(10, 6))
-                sns.regplot(data=df_clean, x=col_len, y=col_gap, ax=ax3,
-                            scatter_kws={'alpha':0.4, 'color':'teal'}, 
-                            line_kws={'color':'red', 'label':'Trendlinje'})
-                ax3.set_title(f'Pearson korrelasjon: {correlation:.2f}', fontsize=12)
-                ax3.set_xlabel(f'{col_len} (Stokklengde)', fontsize=12)
-                ax3.set_ylabel(f'{col_gap} (Lukestørrelse)', fontsize=12)
-                ax3.legend()
-                st.pyplot(fig3)
+                fig3 = px.scatter(df_final, x=col_len, y=col_gap, trendline="ols",
+                                  hover_data=[df_final.index], 
+                                  title=f"Korrelasjon (Pearson: {correlation:.4f})",
+                                  labels={col_len: "Stokklengde", col_gap: "Luka"})
+                st.plotly_chart(fig3, use_container_width=True)
 
     except Exception as e:
-        st.error(f"En feil oppstod under behandling av filen: {e}")
+        st.error(f"En feil oppstod: {e}")
 
-    # Info om utvikleren (Minimalistisk alternativ)
     st.sidebar.markdown("---")
-    with st.sidebar.expander("ℹ️ Om utvikleren"):
-        st.markdown("""
-        **Michal Kuszynski**       
-        
-        
-        [www.leansixsigma.no](http://www.leansixsigma.no)
-        """)
+    st.sidebar.markdown("**Utviklet av Michal Kuszynski**")
 else:
-    st.info("👈 Last opp datafilen (Snap.txt) i sidefeltet for å starte analysen.")
+    st.info("👈 Vennligst last opp Snap.txt i sidefeltet.")
