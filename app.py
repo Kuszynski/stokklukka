@@ -122,7 +122,8 @@ if uploaded_file is not None:
             r2c4.metric("Cpk (Prosesskapasitet)", f"{cpk:.2f}")
 
             # --- ANALYSE AV ANOMALIER ---
-            outliers_df = outliers_high
+            # --- ANALYSE AV ANOMALIER ---
+            outliers_df = pd.concat([outliers_low, outliers_high])
             num_outliers = len(outliers_df)
             percent_outliers = (num_outliers / len(df_clean)) * 100
 
@@ -132,19 +133,20 @@ if uploaded_file is not None:
             unaturlig store luker i produksjonen.
             """)
 
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.metric("Antall anomalier", num_outliers)
-            with c2:
-                st.metric("Andel av produksjon", f"{percent_outliers:.2f}%")
-            with c3:
-                st.metric("Grense for avvik", f"> {upper_bound:.1f} cm")
+            a1, a2, a3 = st.columns(3)
+            a1.metric("For høye (Sløsing)", len(outliers_high), delta=f"> {upper_bound:.1f} cm", delta_color="inverse")
+            a2.metric("For lave (Risiko)", len(outliers_low), delta=f"< {lower_bound:.1f} cm", delta_color="inverse")
+            a3.metric("Total andel avvik", f"{percent_outliers:.2f}%")
 
             if num_outliers > 0:
-                with st.expander("Se liste over klogger med ekstreme luker"):
-                    st.write(f"Alle luker over **{upper_bound:.1f} cm** er definert som prosessfeil (outliers).")
-                    # Sorterer slik at de største lukene kommer først
-                    st.dataframe(outliers_df.sort_values(by=col_gap, ascending=False))
+                with st.expander("Se detaljert liste over anomalier"):
+                    col_tab1, col_tab2 = st.columns(2)
+                    with col_tab1:
+                        st.write(f"**Høye anomalier (> {upper_bound:.1f} cm):**")
+                        st.dataframe(outliers_high.sort_values(by=col_gap, ascending=False))
+                    with col_tab2:
+                        st.write(f"**Lave anomalier (< {lower_bound:.1f} cm):**")
+                        st.dataframe(outliers_low.sort_values(by=col_gap, ascending=True))
                     
                     st.info(f"""
                     **Tips for Black Belt:** Disse kloggene er hovedårsaken til den høye kurtosen ({kurtosis:.2f}) 
