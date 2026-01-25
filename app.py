@@ -65,12 +65,50 @@ if uploaded_file is not None:
             default_len = 'Längd' if 'Längd' in all_columns else (all_columns[1] if len(all_columns) > 1 else all_columns[0])
             col_gap = st.selectbox("Kolonne for lukestørrelse (StoLucka)", all_columns, index=all_columns.index(default_gap))
             col_len = st.selectbox("Kolonne for stokklengde (Längd)", all_columns, index=all_columns.index(default_len))
-
+            
         # --- 3. Datarensing ---
         st.sidebar.markdown("---")
-        st.sidebar.subheader("🛠️ Datarensing")
+        st.sidebar.subheader("🛠️ Datarensing og Filtrering")
+
+        # Nytt: Checkbox for å aktivere/deaktivere filtrering
+        enable_filter = st.sidebar.checkbox("Aktiver ekstra filtrering (f.eks. Klasse/InmDia)", value=True)
         
-        df_clean = df[[col_gap, col_len]].dropna()
+        filter_info = ""
+        df_filtered = df
+        
+        if enable_filter:
+            # Nytt: Valg for filtreringskolonne flyttet hit for oversiktlighet
+            default_filter = 'InmDia' if 'InmDia' in all_columns else (all_columns[2] if len(all_columns) > 2 else all_columns[0])
+            col_filter = st.sidebar.selectbox("Velg kolonne for filtrering", all_columns, index=all_columns.index(default_filter) if default_filter in all_columns else 0)
+            
+            # Filtrering basert på valgt kolonne
+            if col_filter in df.columns:
+                # Sjekk om dataene er numeriske for slider
+                if pd.api.types.is_numeric_dtype(df[col_filter]):
+                    min_val = int(df[col_filter].min())
+                    max_val = int(df[col_filter].max())
+                    
+                    st.sidebar.markdown(f"**Filtrer på '{col_filter}':**")
+                    filter_range = st.sidebar.slider(
+                        "Velg område:",
+                        min_value=min_val,
+                        max_value=max_val,
+                        value=(min_val, max_val)
+                    )
+                    
+                    # Bruk filteret
+                    df_filtered = df[
+                        (df[col_filter] >= filter_range[0]) & 
+                        (df[col_filter] <= filter_range[1])
+                    ]
+                    filter_info = f"Filter: {col_filter} {filter_range}."
+                else:
+                     st.sidebar.warning(f"Kolonnen '{col_filter}' er ikke numerisk og kan ikke filtreres med slider.")
+                     df_filtered = df.copy() # Fallback
+            
+            df_clean = df_filtered[[col_gap, col_len, col_filter]].dropna()
+        else:
+            df_clean = df_filtered[[col_gap, col_len]].dropna()
 
         # Obliczanie obu granic anomalii (IQR)
         Q1 = df_clean[col_gap].quantile(0.25)
@@ -95,9 +133,11 @@ if uploaded_file is not None:
         # Logika filtrowania
         if exclude_outliers:
             df_final = df_clean[(df_clean[col_gap] >= lower_bound) & (df_clean[col_gap] <= upper_bound)]
-            st.warning(f"Analysen viser nå data UTEN anomalier ({total_outliers_count} rader fjernet).")
+            st.warning(f"Analysen viser nå data UTEN anomalier ({total_outliers_count} rader fjernet). {filter_info}")
         else:
             df_final = df_clean
+            if len(df) != len(df_final) and filter_info:
+                 st.info(f"Viser filtrerte data. {filter_info}")
 
         if len(df_final) > 0:
             # --- STATISTIKK SEKSJON ---
