@@ -181,6 +181,6 @@ if uploaded_file is not None:
         st.error(f"En feil oppstod: {e}")
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Utviklet av Michal Kuszynski**")
+    st.sidebar.markdown("**Utviklet av Michal Kuszynski**  \n[www.leansixsigma.no](http://www.leansixsigma.no)")
 else:
     st.info("👈 Vennligst last opp Snap.txt i sidefeltet.")
