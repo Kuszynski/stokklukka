@@ -76,10 +76,12 @@ if uploaded_file is not None:
         with st.sidebar.expander("⚙️ Konfigurasjon", expanded=True):
             all_columns = df.columns.tolist()
             
+            
             # Automatisk gjenkjenning av kolonner
             default_gap = 'StoLucka' if 'StoLucka' in all_columns else all_columns[0]
             default_len = 'Längd' if 'Längd' in all_columns else (all_columns[1] if len(all_columns) > 1 else all_columns[0])
             
+            st.markdown("### Valg av kolonner for korrelasjon")
             col_gap = st.selectbox("Kolonne for lukestørrelse (StoLucka)", all_columns, index=all_columns.index(default_gap))
             col_len = st.selectbox("Kolonne for stokklengde (Längd)", all_columns, index=all_columns.index(default_len))
         
@@ -117,17 +119,68 @@ if uploaded_file is not None:
             st.header("Statistikk og analyse")
             
             stats = df_clean[col_gap].describe()
+            skewness = df_clean[col_gap].skew()
+            kurtosis = df_clean[col_gap].kurt()
             correlation = df_clean[col_len].corr(df_clean[col_gap])
             
-            c1, c2, c3 = st.columns(3)
+            # Første rad med statistikk
+            c1, c2, c3, c4 = st.columns(4)
             with c1:
                 st.metric("Antall stokk", int(stats['count']))
             with c2:
                 st.metric("Gjennomsnittlig luke", f"{stats['mean']:.2f}")
             with c3:
+                st.metric("Median luke", f"{stats['50%']:.2f}")
+            with c4:
                 st.metric("Standardavvik", f"{stats['std']:.2f}")
 
-            st.write(f"**Pearson-korrelasjon ({col_len} vs {col_gap}):** `{correlation:.4f}`")
+            # Andre rad med statistikk (Inkludert Skewness og Kurtosis)
+            c4, c5, c6 = st.columns(3)
+            with c4:
+                st.metric("Skjevhet (Skewness)", f"{skewness:.2f}")
+            with c5:
+                st.metric("Kurtose (Kurtosis)", f"{kurtosis:.2f}")
+            with c6:
+                st.metric("Pearson-korrelasjon", f"{correlation:.4f}")
+
+            # Tolkning av Skewness
+            if skewness > 0.5:
+                skew_text = "Dataene er **høyreskjev** (positiv skjevhet). Det betyr at de fleste verdiene er lave, men noen få svært høye verdier trekker gjennomsnittet opp. Halen på høyre side er lengst."
+            elif skewness < -0.5:
+                skew_text = "Dataene er **venstreskjev** (negativ skjevhet). Det betyr at de fleste verdiene er høye, men noen få svært lave verdier trekker gjennomsnittet ned. Halen på venstre side er lengst."
+            else:
+                skew_text = "Dataene er tilnærmet **symmetriske**. Fordelingen ligner på en normalfordeling uten store skjevheter."
+
+            # Tolkning av Kurtosis
+            if kurtosis > 0.5:
+                kurt_text = "Fordelingen er **spiss** (leptokurtisk). Det er flere verdier rundt gjennomsnittet og flere i halene (flere utliggere) enn i en normalfordeling."
+            elif kurtosis < -0.5:
+                kurt_text = "Fordelingen er **flat** (platykurtisk). Det er færre ekstreme verdier (tynnere haler) og kurven er flatere enn en normalfordeling."
+            else:
+                kurt_text = "Fordelingen har en **normal krumning** (mesokurtisk), som forventet av en normalfordeling."
+
+            # Forklaring av statistiske begreper
+            with st.expander("ℹ️ Hva betyr Skjevhet og Kurtose?"):
+                st.markdown(f"""
+                ### **Din Dataanalyse:**
+                - **Skjevhet ({skewness:.2f}):** {skew_text}
+                - **Kurtose ({kurtosis:.2f}):** {kurt_text}
+                
+                ---
+                ### **Generell Teori:**
+                
+                #### **Skjevhet (Skewness)**
+                Måler asymmetrien i fordelingen av dataene.
+                - **0:** Symmetrisk fordeling (Normalfordeling).
+                - **Positiv (> 0):** Høyreskjev. Halen er lengre på høyre side (flere store verdier trekker snittet opp).
+                - **Negativ (< 0):** Venstreskjev. Halen er lengre på venstre side (flere små verdier trekker snittet ned).
+
+                #### **Kurtose (Kurtosis)**
+                Måler "spissheten" til fordelingen og tykkelsen på halene sammenlignet med en normalfordeling.
+                - **0 (Mesokurtisk):** Som en normalfordeling.
+                - **Positiv (> 0, Leptokurtisk):** Spissere topp og tykkere haler (flere ekstreme verdier/utliggere).
+                - **Negativ (< 0, Platykurtisk):** Flatere topp og tynnere haler (færre ekstreme verdier).
+                """)
             
             with st.expander("Detaljert deskriptiv statistikk"):
                 st.table(stats)
