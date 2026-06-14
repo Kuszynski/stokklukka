@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
     <div class="app-container">
@@ -26,13 +26,30 @@
             <!-- Panel wczytywania plików -->
             <section class="section">
                 <h3>1. Datainnlasting (Wczytanie)</h3>
-                <div class="file-uploader" id="dropzone">
-                    <div class="uploader-content">
-                        <span class="upload-icon">📥</span>
-                        <p class="upload-text">Przeciągnij i upuść plik tekstowy (.txt, .csv)<br>lub kliknij, aby wybrać.</p>
-                        <input type="file" id="fileInput" accept=".txt,.csv" style="display:none;">
+                
+                <!-- Przełącznik metod wczytywania -->
+                <div class="upload-methods">
+                    <button type="button" id="methodFileBtn" class="method-btn active">Plik</button>
+                    <button type="button" id="methodTextBtn" class="method-btn">Wklej dane</button>
+                </div>
+
+                <!-- Metoda A: Uploader plików -->
+                <div id="file-upload-wrapper">
+                    <div class="file-uploader" id="dropzone">
+                        <div class="uploader-content">
+                            <span class="upload-icon">📥</span>
+                            <p class="upload-text">Przeciągnij i upuść plik tekstowy (.txt, .csv)<br>lub kliknij, aby wybrać.</p>
+                            <input type="file" id="fileInput" accept=".txt,.csv" style="display:none;">
+                        </div>
                     </div>
                 </div>
+
+                <!-- Metoda B: Wklejanie tekstu -->
+                <div id="text-paste-wrapper" class="hidden">
+                    <textarea id="pasteInput" placeholder="Wklej tutaj zawartość logu (np. skopiowaną z Snap.txt). Kolumny oddziel tabulatorem lub przecinkiem..." class="form-control paste-textarea"></textarea>
+                    <button type="button" id="btnSubmitPaste" class="btn btn-secondary-outline">Załaduj wklejony tekst</button>
+                </div>
+
                 <div id="file-status" class="file-status hidden"></div>
             </section>
 
@@ -305,6 +322,6 @@
         <p>Przetwarzanie i analiza statystyczna...</p>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/app.js"></script>
 </body>
 </html>

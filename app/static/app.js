@@ -25,6 +25,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
     const btnAnalyze = document.getElementById('btnAnalyze');
+    
+    // Przełączniki metod wczytywania
+    const methodFileBtn = document.getElementById('methodFileBtn');
+    const methodTextBtn = document.getElementById('methodTextBtn');
+    const fileUploadWrapper = document.getElementById('file-upload-wrapper');
+    const textPasteWrapper = document.getElementById('text-paste-wrapper');
+    const btnSubmitPaste = document.getElementById('btnSubmitPaste');
+    const pasteInput = document.getElementById('pasteInput');
+
+    methodFileBtn.addEventListener('click', () => {
+        methodFileBtn.classList.add('active');
+        methodTextBtn.classList.remove('active');
+        fileUploadWrapper.classList.remove('hidden');
+        textPasteWrapper.classList.add('hidden');
+    });
+
+    methodTextBtn.addEventListener('click', () => {
+        methodTextBtn.classList.add('active');
+        methodFileBtn.classList.remove('active');
+        textPasteWrapper.classList.remove('hidden');
+        fileUploadWrapper.classList.add('hidden');
+    });
+
+    btnSubmitPaste.addEventListener('click', () => {
+        const textContent = pasteInput.value;
+        if (!textContent.trim()) {
+            showError('Proszę najpierw wkleić dane tekstowe.');
+            return;
+        }
+        // Konwersja wklejonego tekstu na wirtualny plik w JS
+        const virtualFile = new File([textContent], "wklejone_dane.txt", { type: "text/plain" });
+        handleFileSelect(virtualFile);
+    });
 
     // Obsługa Drag & Drop
     dropzone.addEventListener('click', () => fileInput.click());

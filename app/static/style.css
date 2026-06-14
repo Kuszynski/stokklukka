@@ -689,3 +689,70 @@ h1, h2, h3, h4 {
         height: auto;
     }
 }
+
+/* Przełącznik metod wczytywania danych (Plik / Wklej) */
+.upload-methods {
+    display: flex;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 6px;
+}
+
+.method-btn {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    color: var(--text-muted);
+    padding: 6px 12px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.method-btn:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.method-btn.active {
+    color: #000;
+    background-color: var(--color-primary);
+    font-weight: 600;
+}
+
+.paste-textarea {
+    height: 120px;
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    resize: vertical;
+    background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+.btn-secondary-outline {
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-main);
+    padding: 8px 12px;
+    font-size: 13px;
+    margin-top: 8px;
+    border-radius: var(--radius-main);
+    font-family: var(--font-heading);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.btn-secondary-outline:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
