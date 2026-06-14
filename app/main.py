@@ -11,7 +11,7 @@ from typing import List, Dict, Optional, Tuple
 app = FastAPI(
     title="Stokklukeanalyse API", 
     description="DevOps Project - Michal Kuszynski", 
-    version="1.0.0"
+    version="1.0.1"
 )
 
 # Endpoint: /health
