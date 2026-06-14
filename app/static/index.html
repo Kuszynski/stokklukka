@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Stokklukeanalyse - Pulpit DevOps</title>
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar: Kontrolery -->
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="logo-icon">🌲</span>
+                <h2>Stokklukeanalyse</h2>
+            </div>
+            
+            <hr class="divider">
+            
+            <!-- Panel wczytywania plików -->
+            <section class="section">
+                <h3>1. Datainnlasting (Wczytanie)</h3>
+                <div class="file-uploader" id="dropzone">
+                    <div class="uploader-content">
+                        <span class="upload-icon">📥</span>
+                        <p class="upload-text">Przeciągnij i upuść plik tekstowy (.txt, .csv)<br>lub kliknij, aby wybrać.</p>
+                        <input type="file" id="fileInput" accept=".txt,.csv" style="display:none;">
+                    </div>
+                </div>
+                <div id="file-status" class="file-status hidden"></div>
+            </section>
+
+            <!-- Dynamiczna konfiguracja kolumn -->
+            <section class="section hidden" id="config-section">
+                <h3>⚙️ Konfiguracja Kolumn</h3>
+                <div class="form-group">
+                    <label for="colGapSelect">Wielkość luki (StoLucka):</label>
+                    <select id="colGapSelect" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label for="colLenSelect">Długość kłody (Längd):</label>
+                    <select id="colLenSelect" class="form-control"></select>
+                </div>
+            </section>
+
+            <!-- Datarensing (Filtrowanie i anomalie) -->
+            <section class="section hidden" id="filter-section">
+                <h3>🛠️ Filtrowanie i Anomalie</h3>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="enableFilterCheckbox" checked>
+                    <label for="enableFilterCheckbox">Aktywuj dodatkowy filtr</label>
+                </div>
+                
+                <div id="filter-details">
+                    <div class="form-group">
+                        <label for="colFilterSelect">Kolumna filtrująca:</label>
+                        <select id="colFilterSelect" class="form-control"></select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Zakres filtra (<span id="filter-col-name">-</span>):</label>
+                        <div class="range-display">
+                            <span id="range-val-min">0</span> - <span id="range-val-max">0</span>
+                        </div>
+                        <div class="range-sliders">
+                            <input type="range" id="filterRangeMin" class="range-slider">
+                            <input type="range" id="filterRangeMax" class="range-slider">
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="divider">
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="excludeOutliersCheckbox">
+                    <label for="excludeOutliersCheckbox" class="warning-label">Ekskluduj ALL anomalie (IQR)</label>
+                </div>
+            </section>
+
+            <!-- Cele procesu (Lean Six Sigma) -->
+            <section class="section">
+                <h3>🎯 Prosessmål (Cele Lean)</h3>
+                <div class="form-group">
+                    <label for="targetInput">Wartość docelowa (Target):</label>
+                    <input type="number" id="targetInput" class="form-control" value="100.0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="lslInput">Dolna granica (LSL):</label>
+                    <input type="number" id="lslInput" class="form-control" value="50.0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="uslInput">Górna granica (USL):</label>
+                    <input type="number" id="uslInput" class="form-control" value="150.0" step="0.1">
+                </div>
+            </section>
+
+            <button id="btnAnalyze" class="btn btn-primary" disabled>Analizuj dane</button>
+
+            <footer class="sidebar-footer">
+                <p>Wdrożenie projektu: <strong>Michal Kuszynski</strong></p>
+                <p><a href="http://www.leansixsigma.no" target="_blank">leansixsigma.no</a></p>
+            </footer>
+        </aside>
+
+        <!-- Main Content: Statystyki i Wykresy -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-title">
+                    <h1>📊 Stokklukeanalyse Dashboard</h1>
+                    <p class="subtitle">Zautomatyzowane wskaźniki wydolności procesów i analityka DevOps w chmurze AWS</p>
+                </div>
+                <div class="api-badges">
+                    <span class="badge badge-success">API Status: OK</span>
+                    <span class="badge badge-info" id="app-version-badge">v1.0.0</span>
+                </div>
+            </header>
+
+            <!-- Stan początkowy: Brak danych -->
+            <div id="no-data-view" class="empty-state">
+                <div class="empty-state-content">
+                    <span class="empty-icon">📈</span>
+                    <h2>Brak zaimportowanych danych</h2>
+                    <p>Załaduj plik tekstowy z logami (np. <code>Snap.txt</code>) w panelu bocznym, aby rozpocząć zaawansowaną analizę statystyczną i wyznaczyć zdolność procesu (Cp/Cpk).</p>
+                </div>
+            </div>
+
+            <!-- Widok danych: Dashboard -->
+            <div id="dashboard-view" class="dashboard-grid hidden">
+                
+                <!-- Informacja o anomalii -->
+                <div id="outliers-alert" class="alert-box alert-warning hidden">
+                    <span class="alert-icon">⚠️</span>
+                    <p id="outliers-alert-text">Analiza wykazuje obecność anomalii w procesie.</p>
+                </div>
+
+                <!-- Rząd 1: Główne metryki -->
+                <div class="metrics-grid">
+                    <div class="card metric-card">
+                        <span class="card-icon">🪵</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Liczba kłód (N)</span>
+                            <h2 id="metric-count" class="metric-value">0</h2>
+                        </div>
+                    </div>
+                    <div class="card metric-card">
+                        <span class="card-icon">📏</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Gjennomsnitt (Średnia)</span>
+                            <h2 id="metric-mean" class="metric-value">0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card metric-card">
+                        <span class="card-icon">📍</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Median luka (Mediana)</span>
+                            <h2 id="metric-median" class="metric-value">0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card metric-card">
+                        <span class="card-icon">📉</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Standardavvik (Odchylenie)</span>
+                            <h2 id="metric-std" class="metric-value">0.00</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rząd 2: Wskaźniki Six Sigma & Skośność -->
+                <div class="metrics-grid">
+                    <div class="card metric-card capability-card" id="card-cp">
+                        <span class="card-icon">📈</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Cp (Potencjał procesu)</span>
+                            <h2 id="metric-cp" class="metric-value">0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card metric-card capability-card" id="card-cpk">
+                        <span class="card-icon">🎯</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Cpk (Wydolność procesu)</span>
+                            <h2 id="metric-cpk" class="metric-value">0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card metric-card">
+                        <span class="card-icon">🔀</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Skośność (Skewness)</span>
+                            <h2 id="metric-skew" class="metric-value">0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card metric-card">
+                        <span class="card-icon">🔺</span>
+                        <div class="metric-info">
+                            <span class="metric-label">Kurtoza (Kurtosis)</span>
+                            <h2 id="metric-kurt" class="metric-value">0.00</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rząd 3: Analiza Anomalii -->
+                <div class="anomalies-summary card">
+                    <h3>🚨 Analiza anomalii (Outliers) - Metoda IQR</h3>
+                    <div class="anomalies-metrics">
+                        <div class="anomaly-subcard">
+                            <span class="subcard-label">Zbyt wysokie (Sløsing / Straty)</span>
+                            <h4 id="anomaly-high-count">0</h4>
+                            <span class="subcard-delta" id="anomaly-high-bound">> 0.0 cm</span>
+                        </div>
+                        <div class="anomaly-subcard">
+                            <span class="subcard-label">Zbyt niskie (Risiko / Ryzyko)</span>
+                            <h4 id="anomaly-low-count">0</h4>
+                            <span class="subcard-delta" id="anomaly-low-bound">< 0.0 cm</span>
+                        </div>
+                        <div class="anomaly-subcard">
+                            <span class="subcard-label">Łączny udział anomalii</span>
+                            <h4 id="anomaly-total-pct">0.00%</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rząd 4: Wykresy (Karty z zakładkami) -->
+                <div class="charts-card card">
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-tab="tab-histogram">Histogram rozkładu</button>
+                        <button class="tab-btn" data-tab="tab-runchart">Sekwencja produkcji (Run Chart)</button>
+                        <button class="tab-btn" data-tab="tab-scatter">Korelacja (Długość vs Luka)</button>
+                    </div>
+                    
+                    <div class="tab-content active" id="tab-histogram">
+                        <div class="chart-container">
+                            <canvas id="histogramChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-content" id="tab-runchart">
+                        <div class="chart-container">
+                            <canvas id="runChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-content" id="tab-scatter">
+                        <div class="chart-container">
+                            <canvas id="scatterChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rząd 5: Szczegółowe tabele anomalii -->
+                <div class="tables-grid">
+                    <div class="card table-card">
+                        <h3>📈 Wysokie anomalie (Wielkość luki > IQR)</h3>
+                        <div class="table-scroll">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Indeks kłody</th>
+                                        <th>Wielkość luki (cm)</th>
+                                        <th>Długość (cm)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="high-outliers-table">
+                                    <tr><td colspan="3" class="no-outliers">Brak wysokich anomalii</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="card table-card">
+                        <h3>📉 Niskie anomalie (Wielkość luki &lt; IQR)</h3>
+                        <div class="table-scroll">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Indeks kłody</th>
+                                        <th>Wielkość luki (cm)</th>
+                                        <th>Długość (cm)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="low-outliers-table">
+                                    <tr><td colspan="3" class="no-outliers">Brak niskich anomalii</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informacje Black Belt (Lean) -->
+                <div class="card bb-tips">
+                    <h3>💡 Wskazówki procesowe (Black Belt Lean Six Sigma)</h3>
+                    <p id="bb-tip-text">Wgraj dane, aby wygenerować porady optymalizacyjne.</p>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal ładowania -->
+    <div id="loader-overlay" class="loader-overlay hidden">
+        <div class="loader-spinner"></div>
+        <p>Przetwarzanie i analiza statystyczna...</p>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

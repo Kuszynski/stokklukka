@@ -1,8 +1,8 @@
-streamlit
-pandas
-matplotlib
-seaborn
-numpy
-openpyxl
-plotly
-statsmodels
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pandas>=2.0.0
+numpy>=1.24.0
+python-multipart>=0.0.6
+pytest>=7.0.0
+httpx>=0.24.0
+
