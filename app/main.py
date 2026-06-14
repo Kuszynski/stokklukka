@@ -22,7 +22,8 @@ def health_check():
 # Endpoint: /version
 @app.get("/version")
 def version_check():
-    return {"version": "1.0.0"}
+    return {"version": "1.0.1"}
+
 
 def calculate_capability(data: pd.Series, lsl: float, usl: float) -> Tuple[float, float]:
     mean = data.mean()
