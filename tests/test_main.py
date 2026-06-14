@@ -16,7 +16,8 @@ def test_health_check():
 def test_version_check():
     response = client.get("/version")
     assert response.status_code == 200
-    assert response.json() == {"version": "1.0.0"}
+    assert response.json() == {"version": "1.0.1"}
+
 
 # Test 3: Logika wyliczania zdolności procesu (Cp, Cpk)
 def test_calculate_capability():
