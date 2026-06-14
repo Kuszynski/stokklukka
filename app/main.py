@@ -105,9 +105,11 @@ async def analyze_data(
 
         # Zapisz informacje o wartościach min/max dla filtra do odesłania do UI
         filter_meta = {"column": chosen_filter_col, "min": 0, "max": 0, "active": False}
-        if chosen_filter_col in df_clean.columns:
-            filter_meta["min"] = float(df_clean[chosen_filter_col].min())
-            filter_meta["max"] = float(df_clean[chosen_filter_col].max())
+        if chosen_filter_col in df.columns:
+            filter_series = pd.to_numeric(df[chosen_filter_col], errors='coerce').dropna()
+            if not filter_series.empty:
+                filter_meta["min"] = float(filter_series.min())
+                filter_meta["max"] = float(filter_series.max())
 
         # Zastosowanie filtra
         df_filtered = df_clean.copy()
